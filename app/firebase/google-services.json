@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "931372462108",
+    "firebase_url": "https://first-project-3c315-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "first-project-3c315",
+    "storage_bucket": "first-project-3c315.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:931372462108:android:9b91a098087f830eb3efd9",
+        "android_client_info": {
+          "package_name": "sosApp.com"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "931372462108-668faoaisfok79ncvvtanjgk5heuc6kr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCq7X2mFPJoXa-uoZnUywcdtOSz0caLWzE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "931372462108-668faoaisfok79ncvvtanjgk5heuc6kr.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

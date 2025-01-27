@@ -1,0 +1,580 @@
+import React, { useState, useEffect, useRef } from "react";
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Animated,
+} from "react-native";
+import MapView, { Marker, Circle, PROVIDER_GOOGLE } from "react-native-maps";
+import * as Location from "expo-location";
+import Icon from "react-native-vector-icons/MaterialIcons";
+import { useRouter } from "expo-router";
+import CircleDropdown from "../components/home components/CircleDropdown";
+import ContactBottomSheet from "../components/home components/ContactBottomSheet";
+import SosScreen from "./sosScreen";
+import { Ionicons } from "@expo/vector-icons";
+import CircleDetailsModal from "../components/home components/CircleDetailsModal";
+import SOSDetailsModal from "../components/home components/sosDetailsModal";
+import SignalModal from "../components/home components/signalModal"; // Use uppercase 'S'
+
+import {
+  fetchContactsInCircle,
+  fetchCreatedCircles,
+  fetchJoinedCircles,
+  getSignalsByCircleId,
+} from "../services/circleServices";
+import { auth } from "../firebase/firebaseconfig";
+import ProfileModal from "./ProfileScreen";
+
+const HomeScreen = () => {
+  const [mapType, setMapType] = useState("standard");
+  const [currentLocation, setCurrentLocation] = useState(null);
+  const [region, setRegion] = useState(null);
+  const [contacts, setContacts] = useState([]);
+  const [signals, setSignals] = useState([]); // Store signals for the selected circle
+  const [isSheetVisible, setSheetVisible] = useState(false);
+  const [selectedCircle, setSelectedCircle] = useState(null);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [loadingCircles, setLoadingCircles] = useState(false);
+  const [createdCircles, setCreatedCircles] = useState([]);
+  const [joinedCircles, setJoinedCircles] = useState([]);
+  const router = useRouter();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [userProfileImage, setUserProfileImage] = useState(null);
+  const [isSosModalVisible, setSosModalVisible] = useState(false);
+  const [isCircleDetailsModalVisible, setCircleDetailsModalVisible] = useState(false);
+  const [circleDetails, setCircleDetails] = useState(null);
+  const [isSosDetailsModalVisible, setSosDetailsModalVisible] = useState(false);
+  const [isSignalsModalVisible, setSignalsModalVisible] = useState(false);
+  const [currentCircleId, setCurrentCircleId] = useState(null);
+  const [currentCircleName, setCurrentCircleName] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission to access location was denied");
+        return;
+      }
+
+      let location = await Location.getCurrentPositionAsync({});
+      setCurrentLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+      setRegion({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
+      });
+    })();
+  }, []);
+
+  const handleShowContactBottomSheet = () => {
+    setSheetVisible(true);
+  };
+
+  const handleProfileImageUpdate = (imageUri) => {
+    setUserProfileImage(imageUri);
+  };
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        const uid = user.uid;
+        try {
+          const created = await fetchCreatedCircles(uid);
+          const joined = await fetchJoinedCircles(uid);
+          setCreatedCircles(created.data);
+          setJoinedCircles(joined.data);
+        } catch (error) {
+          console.error("Failed to load circles:", error);
+        } finally {
+          setLoadingCircles(false);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleSelectCircle = async (circle) => {
+    setSelectedCircle(circle);
+    setLoadingContacts(true);
+
+    try {
+      // Fetch contacts in the selected circle
+      const response = await fetchContactsInCircle(circle._id);
+      if (!response.success) {
+        console.error("Error fetching contacts:", response.message);
+        setContacts([]);
+        return;
+      }
+
+      // Ensure we're logging the contacts properly
+      const circleContacts = response.data.contacts || [];
+      setContacts(circleContacts);
+      console.log('Fetched Contacts:', circleContacts); // Log contacts to check userIds
+
+      // Fetch signals for the selected circle
+      const signalResponse = await getSignalsByCircleId(circle._id);
+      console.log('Signal Response:', signalResponse); // Log the signal response to check its structure
+
+      if (signalResponse && signalResponse.data && signalResponse.data.length > 0) {
+        const signalsData = signalResponse.data;
+        setSignals(signalsData); // Store signals
+        signalsData.forEach(signal => {
+          console.log('Signal Data:', signal);
+          console.log('Signal User ID:', signal.userId); // Log signal user ID
+        });
+      }
+
+      setSheetVisible(true);
+    } catch (error) {
+      console.error("Error fetching contacts or signals:", error);
+    } finally {
+      setLoadingContacts(false);
+    }
+  };
+
+  const toggleMapType = () => {
+    setMapType((prevType) => {
+      switch (prevType) {
+        case "standard":
+          return "satellite";
+        case "satellite":
+          return "terrain";
+        case "terrain":
+          return "hybrid";
+        case "hybrid":
+        default:
+          return "standard";
+      }
+    });
+  };
+
+  const handleActiveSosPress = () => {
+    setSosDetailsModalVisible(true);
+  };
+
+  const handleSignalsPress = () => {
+    if (selectedCircle) {
+      setCurrentCircleId(selectedCircle._id);
+      setCurrentCircleName(selectedCircle.name);
+      setSignalsModalVisible(true);
+    } else {
+      Alert.alert("No circle selected", "Please select a circle first.");
+    }
+  };
+
+  const handleAddPersonPress = () => {
+    if (selectedCircle) {
+      setCircleDetails(selectedCircle);
+      setCircleDetailsModalVisible(true);
+    } else {
+      Alert.alert("No circle selected", "Please select a circle first.");
+    }
+  };
+
+
+
+  return (
+    <View style={styles.container}>
+            {/* Top Toolbar */}
+            <View style={styles.topToolbar}>
+        <TouchableOpacity
+          style={styles.iconContainer}
+          onPress={() => router.push("/screens/SettingsScreen")}
+        >
+          <Icon name="settings" size={20} color="#FF8852" />
+        </TouchableOpacity>
+        <CircleDropdown
+          onSelectCircle={handleSelectCircle}
+          createdCircles={createdCircles}
+          joinedCircles={joinedCircles}
+          loadingCircles={loadingCircles}
+        />
+        <TouchableOpacity
+          style={styles.iconContainer}
+          onPress={handleAddPersonPress}
+        >
+          <Ionicons name="person-add-outline" size={20} color="#FF8852" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Map View */}
+      <MapView
+        style={styles.map}
+        provider={PROVIDER_GOOGLE}
+        mapType={mapType}
+        region={region}
+        showsUserLocation={true}
+      >
+        {currentLocation && (
+          <>
+            {/* Your Location Marker */}
+            <Marker
+              coordinate={currentLocation}
+              title="Your Location"
+              pinColor="#FF8852"
+            />
+
+            {/* Render markers for contacts */}
+            {contacts.map((contact) => {
+              const contactUserId = contact.userId;
+
+              // Find signals based on the correct userId
+              const contactSignals = signals.filter(signal => signal.userId === contactUserId);
+
+              return (
+                contact.location && (
+                  <Marker
+                    key={contactUserId} // Use userId for a unique key
+                    coordinate={contact.location} // Ensure location is correct
+                    title={contact.name}
+                    description={`Battery: ${contact.batteryPercentage}%`}
+                  >
+                    {/* Draw circles based on signals */}
+                    {contactSignals.map(signal => (
+                      <Circle
+                        key={signal._id} // Ensure each circle has a unique key
+                        center={{
+                          latitude: signal.lat, // Use signal's lat
+                          longitude: signal.lng, // Use signal's lng
+                        }}
+                        radius={signal.radius} // Use the signal's radius
+                        strokeColor="rgba(255, 165, 0, 0.5)" // Orange stroke color
+                        fillColor="rgba(255, 165, 0, 0.3)" // Orange fill with transparency
+                      />
+                    ))}
+                  </Marker>
+                )
+              );
+            })}
+          </>
+        )}
+      </MapView>
+
+
+      {/* Layer Buttons */}
+      <View style={styles.layerButtons}>
+        <TouchableOpacity style={styles.layerButton} onPress={toggleMapType}>
+          <Icon name="layers" size={20} color="#FF8852" />
+        </TouchableOpacity>
+      </View>
+
+      {/* SOS and Create Your Zone Buttons */}
+      <View style={styles.actionButtonsContainer}>
+        {/* <TouchableOpacity style={styles.createZoneButton}>
+          <Text style={styles.createZoneButtonText}>Create Your Zone</Text>
+        </TouchableOpacity> */}
+
+        {/* Active SOS Button */}
+        <TouchableOpacity
+          style={styles.activeSosButton}
+          onPress={handleActiveSosPress}
+        >
+          <Text style={styles.activeSosButtonText}>Active SOS</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.sosButton}
+          onPress={() => setSosModalVisible(true)}
+        >
+          <Text style={styles.sosButtonText}>SOS</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.activeSosButton}
+          onPress={() => router.push("/screens/NearbyServices")}
+        >
+          <Text style={styles.activeSosButtonText}>Nearby Services</Text>
+        </TouchableOpacity>
+
+        {/* Signals Button */}
+        <TouchableOpacity
+          style={styles.signalsButton}
+          onPress={handleSignalsPress}
+        >
+          <Text style={styles.signalsButtonText}>Signals</Text>
+        </TouchableOpacity>
+
+
+      </View>
+
+      {/* Circle Details Modal */}
+      <CircleDetailsModal
+        visible={isCircleDetailsModalVisible}
+        onClose={() => setCircleDetailsModalVisible(false)}
+        circle={circleDetails}
+        circleId={circleDetails?._id}
+        circleCode={circleDetails?.circleCode}
+      />
+
+      {/* SOS Modal */}
+      <Modal
+        visible={isSosModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setSosModalVisible(false)}
+      >
+        <SosScreen
+          onPressClose={() => setSosModalVisible(false)}
+          onPressInfo={() => console.log("Info pressed")}
+          onPressAddMember={() => console.log("Add Member pressed")}
+          selectedCircle={selectedCircle}
+          selectedCircleId={selectedCircle?._id}
+          onShowContactBottomSheet={handleShowContactBottomSheet}
+        />
+      </Modal>
+
+      {/* Contact Bottom Sheet */}
+      {loadingContacts ? (
+        <ActivityIndicator size="large" color="#FF8852" />
+      ) : (
+        <ContactBottomSheet
+          visible={isSheetVisible}
+          onClose={() => setSheetVisible(false)}
+          contacts={contacts}
+          currentUserId={auth.currentUser.uid}
+          selectedCircleId={selectedCircle?._id}
+        />
+      )}
+
+      {/* Bottom Menu */}
+      <View style={styles.bottomMenu}>
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => router.push("/screens/home")}
+        >
+          <Icon name="home" size={25} color="#FF8852" />
+          <Text style={styles.menuItemText}>Home</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => router.push("/screens/CardScreen")}
+        >
+          <Icon name="credit-card" size={30} color="#FF8852" />
+          <Text style={styles.menuItemText}>Cards</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => setModalVisible(true)}
+        >
+          <Icon name="group" size={30} color="#FF8852" />
+          <Text style={styles.menuItemText}>Profile</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Profile Modal */}
+      <ProfileModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onProfileImageUpdate={handleProfileImageUpdate}
+      />
+
+      {/* SOS Details Modal */}
+      <SOSDetailsModal
+        isVisible={isSosDetailsModalVisible} // Ensure it's controlled by the state
+        onClose={() => setSosDetailsModalVisible(false)}
+      />
+
+      <Modal
+        visible={isSignalsModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setSignalsModalVisible(false)}
+      >
+        <SignalModal // Use uppercase 'S'
+          onPressClose={() => setSignalsModalVisible(false)}
+          circleId={currentCircleId}
+          selectedCircleId={selectedCircle?._id}
+        />
+      </Modal>
+
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    // backgroundColor: '#F5F5F5',
+  },
+
+  map: {
+    flex: 1,
+    borderRadius: 10,
+    overflow: "hidden",
+    ...StyleSheet.absoluteFillObject,
+  },
+  topToolbar: {
+    position: "absolute",
+    top: 20,
+    left: -15,
+    right: -15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 30,
+    margin: 10,
+    // backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    // elevation: 5,
+    zIndex: 10,
+  },
+
+  sosButton: {
+    backgroundColor: "#FF8852",
+    borderRadius: 50,
+    paddingVertical: 15, // Increased padding for a modern look
+    elevation: 5,
+    flex: 1,
+    marginHorizontal: 5,
+    alignItems: 'center', // Centering text
+    justifyContent: 'center', // Centering text
+    borderWidth: 1, // Added border for a stylish look
+    borderColor: '#fff', // Contrast border color
+  },
+
+  sosButtonText: {
+    color: "#fff",
+    fontSize: 18, // Increased font size for better readability
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+
+  profileImage: {
+    padding: 10,
+    width: 45,
+    height: 45,
+    borderRadius: 50,
+    elevation: 5,
+  },
+  iconContainer: {
+    backgroundColor: "#fff",
+    padding: 12, // Increased padding for larger touch area
+    margin: 5,
+    borderRadius: 50,
+    elevation: 5, // Added elevation for a shadow effect
+  },
+
+  layerButtons: {
+    position: "absolute",
+    bottom: 200,
+    right: 15,
+    flexDirection: "column",
+  },
+  layerButton: {
+    padding: 9,
+    borderRadius: 50,
+    marginBottom: 15,
+    elevation: 5,
+    backgroundColor: "#FFF",
+  },
+  actionButtonsContainer: {
+    position: "absolute",
+    bottom: 100,
+    left: 15,
+    right: 15,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    // width: "80%",
+  },
+  sosButton: {
+    backgroundColor: "#FF8852",
+    borderRadius: 50,
+    padding: 10,
+    elevation: 5,
+    flex: 1,
+    marginLeft: 10,
+  },
+  sosButtonText: {
+    color: "#fff",
+    fontSize: 18,
+    marginTop: 10,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  activeSosButton: {
+    backgroundColor: "#FF8852",
+    borderRadius: 50,
+    paddingVertical: 15, // Increased padding for a modern look
+    elevation: 5,
+    flex: 1,
+    marginHorizontal: 5,
+    alignItems: 'center', // Centering text
+    justifyContent: 'center', // Centering text
+    borderWidth: 1, // Added border for a stylish look
+    borderColor: '#fff', // Contrast border color
+  },
+
+  activeSosButtonText: {
+    color: "#fff",
+    fontSize: 18, // Increased font size for better readability
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  createZoneButton: {
+    backgroundColor: "#FF8852",
+    borderRadius: 50,
+    padding: 9,
+    elevation: 5,
+    flex: 1,
+  },
+  createZoneButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  bottomMenu: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 15,
+    backgroundColor: "#fff",
+    elevation: 5,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  menuItem: {
+    alignItems: "center",
+  },
+  menuItemText: {
+    fontSize: 10,
+    color: "#FF8852",
+  },
+  signalsButton: {
+    backgroundColor: "#4CAF50", // Green color for Signals
+    borderRadius: 50,
+    paddingVertical: 15,
+    elevation: 5,
+    flex: 1,
+    marginHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#fff',
+  },
+
+  signalsButtonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+});
+
+export default HomeScreen;

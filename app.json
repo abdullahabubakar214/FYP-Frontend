@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "EAS",
+    "slug": "sos-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "sosapp",
+    "userInterfaceStyle": "automatic",
+    "icon": "./app/assets/images/logo.png",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "sosApp.com",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"],
+        "NSMicrophoneUsageDescription": "This app needs access to your microphone for audio calls.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app requires location access to track your location in the background.",
+        "NSLocationWhenInUseUsageDescription": "This app needs location access to provide location-based services."
+      }
+    },
+    "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDFJEvaACmemBBmfa8RprG8Ojf8YlbEdAs"
+        }
+      },
+      "googleServicesFile": "./app/firebase/google-services.json",
+      "adaptiveIcon": {
+        "foregroundImage": "./app/assets/images/logo.png",
+        "backgroundColor": "#FF8852"
+      },
+      "package": "sosApp.com",
+      "permissions": [
+        "RECORD_AUDIO",
+        "INTERNET",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION"
+      ]
+    },
+    "plugins": [
+      "@config-plugins/react-native-webrtc"
+    ],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "extra": {
+      "environment": "development",
+      "apiKey": "AIzaSyDFJEvaACmemBBmfa8RprG8Ojf8YlbEdAs",
+      "eas": {
+        "projectId": "18bdb9b9-d3f2-47e8-8289-87c6573be115"
+      }
+    }
+  }
+}
